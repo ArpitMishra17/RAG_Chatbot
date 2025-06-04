@@ -1,0 +1,17 @@
+# Python virtual environment
+envs/
+   
+# Python cache files
+__pycache__/
+*.pyc
+   
+# PDF data directory
+data/pdfs/
+   
+# Database credentials and sensitive files
+*.env
+*.log
+   
+# Temporary files
+*.swp
+*.bak
