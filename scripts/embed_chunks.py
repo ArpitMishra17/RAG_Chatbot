@@ -20,7 +20,7 @@ def get_db_connection():
 def compute_embeddings():
     """Compute embeddings for all chunks without embeddings"""
     print("Loading embedding model...")
-    model = SentenceTransformer("all-MiniLM-L6-v2")
+    model = SentenceTransformer("Alibaba-NLP/gte-multilingual-base", trust_remote_code=True)
     print("Model loaded successfully!")
     
     conn = get_db_connection()
@@ -38,7 +38,7 @@ def compute_embeddings():
     
     print(f"Computing embeddings for {len(rows)} chunks...")
     
-    batch_size = 32  # Process in batches to manage memory
+    batch_size = 16  # Process in batches to manage memory
     for i in range(0, len(rows), batch_size):
         batch = rows[i:i + batch_size]
         print(f"Processing batch {i//batch_size + 1}/{(len(rows) + batch_size - 1)//batch_size}")
@@ -46,8 +46,10 @@ def compute_embeddings():
         for chunk_id, text in batch:
             try:
                 # Compute embedding
-                embedding = model.encode(text).tolist()
-                
+                embedding = model.encode(text, normalize_embeddings=True).tolist()
+                # Verify embedding dimension
+                if len(embedding) != 768:
+                    raise ValueError(f"Embedding dimension {len(embedding)} != 768 for chunk {chunk_id}")
                 # Update database
                 cur.execute(
                     "UPDATE doc_chunks SET embedding = %s WHERE chunk_id = %s;",

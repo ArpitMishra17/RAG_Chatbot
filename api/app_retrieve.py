@@ -13,7 +13,7 @@ app = FastAPI(title="RAG Retrieval API", version="1.0.0")
 
 # Load embedding model once at startup
 print("Loading embedding model...")
-embed_model = SentenceTransformer("all-MiniLM-L6-v2")
+embed_model = SentenceTransformer("Alibaba-NLP/gte-multilingual-base", trust_remote_code=True)
 print("Embedding model loaded!")
 
 class RetrieveRequest(BaseModel):

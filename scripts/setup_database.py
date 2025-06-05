@@ -39,7 +39,7 @@ def setup_database():
                 doc_id       INT REFERENCES documents(id),
                 chunk_index  INT NOT NULL,
                 chunk_text   TEXT NOT NULL,
-                embedding    VECTOR(384)
+                embedding    VECTOR(768)
             );
         """)
         
