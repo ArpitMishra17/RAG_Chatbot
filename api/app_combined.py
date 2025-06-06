@@ -1,7 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import requests
-import asyncio
 from typing import List, Optional
 
 app = FastAPI(title="RAG Combined API", version="1.0.0")
@@ -22,10 +21,8 @@ class Chunk(BaseModel):
 class QueryResponse(BaseModel):
     question: str
     answer: str
-    sources: List[int]
-    chunks_used: int
+    sources: List[str]
     runtime_ms: int
-    low_confidence: bool
 
 @app.get("/")
 async def root():
@@ -56,9 +53,7 @@ async def query(req: QueryRequest):
                 question=question,
                 answer="I couldn't find any relevant information to answer your question.",
                 sources=[],
-                chunks_used=0,
-                runtime_ms=0,
-                low_confidence=True
+                runtime_ms=0
             )
         
         # Step 2: Generate answer
@@ -77,9 +72,7 @@ async def query(req: QueryRequest):
             question=question,
             answer=answer_data["answer"],
             sources=answer_data["sources"],
-            chunks_used=len(chunks),
-            runtime_ms=answer_data["runtime_ms"],
-            low_confidence=answer_data["low_confidence"]
+            runtime_ms=answer_data["runtime_ms"]
         )
         
     except requests.exceptions.RequestException as e:

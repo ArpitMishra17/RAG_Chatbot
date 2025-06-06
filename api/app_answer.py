@@ -2,7 +2,6 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import requests
 import os
-import re
 import time
 from dotenv import load_dotenv
 from typing import List
@@ -29,9 +28,8 @@ class AnswerRequest(BaseModel):
 
 class AnswerResponse(BaseModel):
     answer: str
-    sources: List[int]
+    sources: List[str]
     runtime_ms: int
-    low_confidence: bool
 
 @app.get("/")
 async def root():
@@ -50,20 +48,17 @@ async def answer(req: AnswerRequest):
     if not req.chunks:
         raise HTTPException(status_code=400, detail="No chunks provided.")
     
-    # Build the chain-of-thought prompt
+    # Build the generative prompt
     prompt = (
-        "You are an intelligent assistant. Follow these steps to answer the user's question:\n"
-        "1. Analyze each passage below\n"
-        "2. Identify which passage(s) contain relevant information\n"
-        "3. Provide a clear, concise answer based only on the given passages\n"
-        "4. Reference passage numbers in your answer using [1], [2], etc.\n\n"
-        "Passages:\n"
+        "You are an intelligent assistant. Use the provided context to generate a clear, concise, and natural answer to the user's question. "
+        "Do not directly quote the context or reference passage numbers. Synthesize the information to provide a coherent response.\n\n"
+        "Context:\n"
     )
     
-    for idx, chunk in enumerate(req.chunks, start=1):
+    for chunk in req.chunks:
         # Truncate very long chunks to manage token limits
         chunk_text = chunk.chunk_text[:1000] + "..." if len(chunk.chunk_text) > 1000 else chunk.chunk_text
-        prompt += f"[{idx}] {chunk_text}\n\n"
+        prompt += f"{chunk_text}\n\n"
     
     prompt += f"Question: {question}\n\nAnswer:"
     
@@ -74,7 +69,7 @@ async def answer(req: AnswerRequest):
     }
     
     data = {
-        "model": "llama-3.1-8b-instant",  # Using Llama 3.1 8B model
+        "model": "llama-3.1-8b-instant",
         "messages": [
             {
                 "role": "user",
@@ -82,7 +77,7 @@ async def answer(req: AnswerRequest):
             }
         ],
         "max_tokens": 512,
-        "temperature": 0.1,
+        "temperature": 0.7,  # Increased for more natural, generative responses
         "top_p": 0.9
     }
     
@@ -98,22 +93,13 @@ async def answer(req: AnswerRequest):
         response_data = resp.json()
         generated = response_data["choices"][0]["message"]["content"].strip()
         
-        # Check for low confidence on numeric/date questions
-        low_conf = False
-        numeric_triggers = ["how many", "total", "%", "number", "sum", "count", "date", "year", "when"]
-        if any(trigger in question.lower() for trigger in numeric_triggers):
-            nums = re.findall(r"\b\d+(?:,\d{3})*(?:\.\d+)?\b", generated)
-            if not nums:
-                low_conf = True
-        
-        # Extract cited passage numbers
-        sources = sorted({int(n) for n in re.findall(r"\[(\d+)\]", generated)}) if generated else []
+        # Collect unique source names
+        sources = sorted({chunk.source_name for chunk in req.chunks if chunk.source_name})
         
         return AnswerResponse(
             answer=generated,
             sources=sources,
-            runtime_ms=int((t1 - t0) * 1000),
-            low_confidence=low_conf
+            runtime_ms=int((t1 - t0) * 1000)
         )
         
     except requests.exceptions.RequestException as e:

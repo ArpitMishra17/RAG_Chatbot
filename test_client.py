@@ -15,11 +15,9 @@ def test_query(question, num_chunks=10):
         if response.status_code == 200:
             result = response.json()
             print(f"\nQuestion: {result['question']}")
-            print(f"Answer: {result['answer']}")
-            print(f"Sources: {result['sources']}")
-            print(f"Chunks used: {result['chunks_used']}")
+            print(f"\nAnswer: {result['answer']}")
+            print(f"\nSources: {', '.join(result['sources']) if result['sources'] else 'None'}")
             print(f"Runtime: {result['runtime_ms']}ms")
-            print(f"Low confidence: {result['low_confidence']}")
         else:
             print(f"Error: {response.status_code} - {response.text}")
     except Exception as e:
