@@ -48,21 +48,68 @@ async def answer(req: AnswerRequest):
     if not req.chunks:
         raise HTTPException(status_code=400, detail="No chunks provided.")
     
-    # Build the generative prompt
-    prompt = (
-        "You are an intelligent assistant. Use the provided context to generate a clear, concise, and natural answer to the user's question. "
-        "Do not directly quote the context or reference passage numbers. Synthesize the information to provide a coherent response.\n\n"
-        "Context:\n"
-    )
+    # More precise table chunk detection
+    table_chunks = []
+    text_chunks = []
     
     for chunk in req.chunks:
-        # Truncate very long chunks to manage token limits
-        chunk_text = chunk.chunk_text[:1000] + "..." if len(chunk.chunk_text) > 1000 else chunk.chunk_text
-        prompt += f"{chunk_text}\n\n"
+        chunk_text = chunk.chunk_text
+        # Check for actual table content, not just any | character
+        if ("TABLE DATA:" in chunk_text or 
+            ("|" in chunk_text and 
+             ("---|" in chunk_text or chunk_text.count("|") > 8))):  # Multiple | chars suggest table
+            table_chunks.append(chunk)
+        else:
+            text_chunks.append(chunk)
+    
+    # Build context-aware prompt
+    if table_chunks and len(table_chunks) >= len(text_chunks):
+        # Table-focused response
+        prompt = (
+            "You are an expert data analyst. Analyze the provided tabular data carefully. "
+            "When answering:\n"
+            "1. Reference specific rows and columns\n"
+            "2. Pay attention to column headers\n"
+            "3. Be precise with numbers and values\n"
+            "4. If data spans multiple table parts, consider all parts\n\n"
+        )
+        
+        # Add table data first
+        for i, chunk in enumerate(table_chunks):
+            chunk_text = chunk.chunk_text[:2000] + "..." if len(chunk.chunk_text) > 2000 else chunk.chunk_text
+            prompt += f"Table Data {i+1} (from {chunk.source_name}):\n{chunk_text}\n\n"
+        
+        # Add supporting text context
+        if text_chunks:
+            prompt += "Additional Context:\n"
+            for chunk in text_chunks[:3]:  # Limit text chunks when tables are primary
+                chunk_text = chunk.chunk_text[:500] + "..." if len(chunk.chunk_text) > 500 else chunk.chunk_text
+                prompt += f"{chunk_text}\n\n"
+    else:
+        # Text-focused response
+        prompt = (
+            "You are a helpful assistant. Use the provided context to answer the question accurately. "
+            "If there are tables, reference them appropriately, but focus on the textual information.\n\n"
+        )
+        
+        # Add text context first
+        for chunk in text_chunks:
+            chunk_text = chunk.chunk_text[:1000] + "..." if len(chunk.chunk_text) > 1000 else chunk.chunk_text
+            prompt += f"Context from {chunk.source_name}:\n{chunk_text}\n\n"
+        
+        # Add table context if available
+        if table_chunks:
+            prompt += "Tabular Data:\n"
+            for i, chunk in enumerate(table_chunks):
+                chunk_text = chunk.chunk_text[:1000] + "..." if len(chunk.chunk_text) > 1000 else chunk.chunk_text
+                prompt += f"Table {i+1}:\n{chunk_text}\n\n"
     
     prompt += f"Question: {question}\n\nAnswer:"
     
-    # Prepare Groq API request
+    # Adjust parameters based on content type
+    max_tokens = 800 if table_chunks else 500
+    temperature = 0.2 if table_chunks else 0.4
+    
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json",
@@ -70,14 +117,9 @@ async def answer(req: AnswerRequest):
     
     data = {
         "model": "llama-3.1-8b-instant",
-        "messages": [
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        "max_tokens": 512,
-        "temperature": 0.7,  # Increased for more natural, generative responses
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": max_tokens,
+        "temperature": temperature,
         "top_p": 0.9
     }
     

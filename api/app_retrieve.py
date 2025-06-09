@@ -67,25 +67,56 @@ async def retrieve(req: RetrieveRequest):
     if not question:
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
     
-    if req.num_chunks <= 0 or req.num_chunks > 50:
-        raise HTTPException(status_code=400, detail="num_chunks must be between 1 and 50.")
+    # More precise table query detection
+    table_keywords = ['table', 'compare', 'list all', 'show all', 'what are the', 'values', 'data', 'rows', 'columns']
+    numerical_keywords = ['how much', 'how many', 'percentage', 'rate', 'amount', 'total', 'sum', 'average', 'maximum', 'minimum', 'cost', 'price', 'number']
+    
+    # Check if it's likely a table query
+    is_likely_table_query = (
+        any(keyword in question.lower() for keyword in table_keywords) or
+        any(keyword in question.lower() for keyword in numerical_keywords)
+    )
     
     try:
         # Embed the question
         q_vec = embed_model.encode(question).tolist()
         
-        # Query database
         conn = get_db_connection()
         cur = conn.cursor()
         
-        sql = """
-        SELECT dc.chunk_id, dc.chunk_text, d.source_name
-        FROM doc_chunks dc
-        JOIN documents d ON dc.doc_id = d.id
-        WHERE dc.embedding IS NOT NULL
-        ORDER BY dc.embedding <-> %s::vector
-        LIMIT %s;
-        """
+        if is_likely_table_query:
+            # For potential table queries, prioritize table chunks but also include regular text
+            sql = """
+            WITH ranked_chunks AS (
+                SELECT dc.chunk_id, dc.chunk_text, d.source_name,
+                       dc.embedding <-> %s::vector as distance,
+                       CASE 
+                           WHEN dc.chunk_text LIKE '%%TABLE DATA:%%' THEN 0
+                           WHEN dc.chunk_text LIKE '%%|%%' AND 
+                                (dc.chunk_text LIKE '%%---|%%' OR 
+                                 LENGTH(dc.chunk_text) - LENGTH(REPLACE(dc.chunk_text, '|', '')) > 10)
+                           THEN 1
+                           ELSE 2 
+                       END as chunk_priority
+                FROM doc_chunks dc
+                JOIN documents d ON dc.doc_id = d.id
+                WHERE dc.embedding IS NOT NULL
+                ORDER BY chunk_priority, distance
+                LIMIT %s
+            )
+            SELECT chunk_id, chunk_text, source_name FROM ranked_chunks
+            ORDER BY chunk_priority, distance;
+            """
+        else:
+            # Regular semantic search
+            sql = """
+            SELECT dc.chunk_id, dc.chunk_text, d.source_name
+            FROM doc_chunks dc
+            JOIN documents d ON dc.doc_id = d.id
+            WHERE dc.embedding IS NOT NULL
+            ORDER BY dc.embedding <-> %s::vector
+            LIMIT %s;
+            """
         
         cur.execute(sql, (q_vec, req.num_chunks))
         rows = cur.fetchall()

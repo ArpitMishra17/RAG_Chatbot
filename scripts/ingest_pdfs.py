@@ -49,6 +49,108 @@ def chunk_text(text, chunk_size=500, overlap=100):
     
     return chunks
 
+def chunk_text_with_tables(text, chunk_size=500, overlap=100):
+    """Split text into overlapping chunks while preserving table structure"""
+    if not text or not text.strip():
+        return []
+    
+    import re
+    
+    # More precise table detection - look for actual markdown table patterns
+    # This pattern looks for lines with multiple | characters and table headers
+    table_patterns = [
+        r'(\n\s*\|[^|\n]*\|[^|\n]*\|[^\n]*\n\s*\|[-\s:]+\|[-\s:]+\|[^\n]*\n(?:\s*\|[^|\n]*\|[^|\n]*\|[^\n]*\n)*)',  # Markdown tables with headers
+        r'(\n(?:\s*\|[^|\n]+\|[^|\n]+\|[^|\n]*\n){3,})',  # Tables with 3+ rows
+    ]
+    
+    # Find all table matches
+    table_matches = []
+    for pattern in table_patterns:
+        for match in re.finditer(pattern, text, re.MULTILINE):
+            table_matches.append((match.start(), match.end(), match.group(1)))
+    
+    # Sort by position and merge overlapping matches
+    table_matches.sort(key=lambda x: x[0])
+    merged_tables = []
+    for start, end, content in table_matches:
+        if merged_tables and start <= merged_tables[-1][1]:
+            # Merge overlapping tables
+            merged_tables[-1] = (merged_tables[-1][0], max(end, merged_tables[-1][1]), 
+                                merged_tables[-1][2] + content)
+        else:
+            merged_tables.append((start, end, content))
+    
+    chunks = []
+    last_pos = 0
+    
+    for table_start, table_end, table_content in merged_tables:
+        # Add text before table
+        before_table = text[last_pos:table_start].strip()
+        if before_table:
+            chunks.extend(chunk_text(before_table, chunk_size, overlap))
+        
+        # Process table - keep entire table together if possible
+        table_text = table_content.strip()
+        
+        # Add context before and after table
+        context_before = text[max(0, table_start-300):table_start].strip()
+        context_after = text[table_end:min(len(text), table_end+300)].strip()
+        
+        # Create table chunk with context
+        table_chunk = ""
+        if context_before:
+            table_chunk += f"CONTEXT: ...{context_before[-200:]}\n\n"
+        
+        table_chunk += f"TABLE DATA:\n{table_text}"
+        
+        if context_after:
+            table_chunk += f"\n\nCONTINUED: {context_after[:200]}..."
+        
+        # If table is very large, split it by rows while preserving headers
+        if len(table_chunk.split()) > chunk_size * 1.5:
+            table_lines = table_text.split('\n')
+            header_lines = []
+            data_lines = []
+            
+            # Find header and separator lines
+            for i, line in enumerate(table_lines):
+                if line.strip() and '|' in line:
+                    if i < 3 or re.match(r'\s*\|[-\s:]+\|', line):  # Header or separator
+                        header_lines.append(line)
+                    else:
+                        data_lines.append(line)
+            
+            # Create chunks with headers repeated
+            if header_lines and data_lines:
+                rows_per_chunk = max(5, (chunk_size * 2) // len(header_lines))
+                
+                for i in range(0, len(data_lines), rows_per_chunk):
+                    chunk_rows = data_lines[i:i + rows_per_chunk]
+                    table_section = '\n'.join(header_lines + chunk_rows)
+                    
+                    section_chunk = f"TABLE DATA (Part {i//rows_per_chunk + 1}):\n{table_section}"
+                    if context_before and i == 0:
+                        section_chunk = f"CONTEXT: ...{context_before[-200:]}\n\n" + section_chunk
+                    
+                    chunks.append(section_chunk)
+            else:
+                chunks.append(table_chunk)
+        else:
+            chunks.append(table_chunk)
+        
+        last_pos = table_end
+    
+    # Add remaining text after last table
+    remaining_text = text[last_pos:].strip()
+    if remaining_text:
+        chunks.extend(chunk_text(remaining_text, chunk_size, overlap))
+    
+    # If no tables found, use regular chunking
+    if not merged_tables:
+        return chunk_text(text, chunk_size, overlap)
+    
+    return [chunk.strip() for chunk in chunks if chunk.strip()]
+
 def ingest_pdfs():
     """Extract and ingest PDFs into database using Docling"""
     # Determine the absolute path to the project's root directory
@@ -207,7 +309,7 @@ def ingest_pdfs():
                 doc_id = cur.fetchone()[0]
                 
                 # Chunk the text
-                chunks = chunk_text(raw_text)
+                chunks = chunk_text_with_tables(raw_text, chunk_size=600, overlap=150)  # Larger chunks for tables
                 print(f"  - Created {len(chunks)} chunks")
                 
                 if not chunks:
