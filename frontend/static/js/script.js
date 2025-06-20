@@ -20,6 +20,203 @@ class RAGChatbot {
         this.maxChats = 10;
         
         this.init();
+        this.setupMarkdown();
+    }
+    
+    setupMarkdown() {
+        // Configure marked options for better formatting
+        if (typeof marked !== 'undefined') {
+            marked.setOptions({
+                breaks: true,        // Convert \n to <br>
+                gfm: true,          // GitHub Flavored Markdown
+                tables: true,       // Support tables
+                sanitize: false,    // Allow HTML (be careful in production)
+                smartypants: false  // Don't convert quotes/dashes
+            });
+        }
+    }
+    
+    // Add method to process markdown
+    processMarkdown(text) {
+        if (typeof marked === 'undefined') {
+            console.warn('Marked library not loaded, returning plain text');
+            return text.replace(/\n/g, '<br>');
+        }
+        
+        try {
+            // Pre-process the text to handle common formatting issues
+            let processedText = text
+                // Fix table formatting - ensure proper spacing
+                .replace(/\|\s*([^|]+)\s*\|/g, (match, content) => {
+                    return `| ${content.trim()} |`;
+                })
+                // Ensure table headers have proper separator
+                .replace(/(\|[^|\n]+\|)\s*\n\s*(\|[^|\n]+\|)/g, (match, header, row) => {
+                    if (!row.includes('---')) {
+                        // This might be a header row, add separator
+                        const colCount = (header.match(/\|/g) || []).length - 1;
+                        const separator = '|' + ' --- |'.repeat(colCount);
+                        return header + '\n' + separator + '\n' + row;
+                    }
+                    return match;
+                })
+                // Fix bold formatting spacing
+                .replace(/\*\*([^*]+)\*\*/g, '**$1**')
+                // Fix italic formatting
+                .replace(/\*([^*]+)\*/g, '*$1*')
+                // Ensure line breaks before tables
+                .replace(/([^\n])\n(\|)/g, '$1\n\n$2');
+            
+            return marked.parse(processedText);
+        } catch (error) {
+            console.error('Markdown processing error:', error);
+            return text.replace(/\n/g, '<br>');
+        }
+    }
+    
+    // Update addMessage method to use markdown
+    addMessage(content, type, sources = [], runtime = null) {
+        this.messageCount++;
+        
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${type}-message`;
+        
+        const avatar = document.createElement('div');
+        avatar.className = 'message-avatar';
+        
+        if (type === 'user') {
+            avatar.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 21V19C20 17.9391 19.5786 16.9217 18.8284 16.1716C18.0783 15.4214 17.0609 15 16 15H8C6.93913 15 5.92172 15.4214 5.17157 16.1716C4.42143 16.9217 4 17.9391 4 19V21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="7" r="4" stroke="currentColor" stroke-width="2"/></svg>';
+        } else {
+            avatar.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+        }
+        
+        const messageContent = document.createElement('div');
+        messageContent.className = 'message-content';
+        
+        const messageBubble = document.createElement('div');
+        messageBubble.className = `message-bubble ${this.getBubbleSizeClass(content)}`;
+        
+        // Process content based on message type
+        if (type === 'bot') {
+            // For bot messages, process markdown
+            const markdownContent = document.createElement('div');
+            markdownContent.className = 'markdown-content';
+            markdownContent.innerHTML = this.processMarkdown(content);
+            messageBubble.appendChild(markdownContent);
+        } else {
+            // For user messages, keep as plain text
+            messageBubble.textContent = content;
+        }
+        
+        messageContent.appendChild(messageBubble);
+        
+        // Add metadata for bot messages
+        if (type === 'bot') {
+            const messageMeta = document.createElement('div');
+            messageMeta.className = 'message-meta';
+            
+            if (sources && sources.length > 0) {
+                const sourcesDiv = document.createElement('div');
+                sourcesDiv.className = 'sources';
+                sourcesDiv.innerHTML = `
+                    <div class="sources-title">Sources:</div>
+                    <div class="sources-list">${sources.join(', ')}</div>
+                `;
+                messageMeta.appendChild(sourcesDiv);
+            }
+            
+            if (runtime) {
+                const runtimeDiv = document.createElement('div');
+                runtimeDiv.className = 'runtime';
+                runtimeDiv.textContent = `Response time: ${runtime}ms`;
+                messageMeta.appendChild(runtimeDiv);
+            }
+            
+            messageContent.appendChild(messageMeta);
+        }
+        
+        messageDiv.appendChild(avatar);
+        messageDiv.appendChild(messageContent);
+        
+        this.chatMessages.appendChild(messageDiv);
+        this.scrollToBottom();
+        
+        // Save message to current chat
+        if (this.currentChatId) {
+            this.currentChatMessages.push({
+                content: content,
+                type: type,
+                sources: sources,
+                runtime: runtime,
+                timestamp: new Date().toISOString()
+            });
+            this.saveCurrentChat();
+        }
+    }
+    
+    // Update renderMessage method for chat history
+    renderMessage(messageData) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${messageData.type}-message`;
+        
+        const avatar = document.createElement('div');
+        avatar.className = 'message-avatar';
+        
+        if (messageData.type === 'user') {
+            avatar.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 21V19C20 17.9391 19.5786 16.9217 18.8284 16.1716C18.0783 15.4214 17.0609 15 16 15H8C6.93913 15 5.92172 15.4214 5.17157 16.1716C4.42143 16.9217 4 17.9391 4 19V21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="7" r="4" stroke="currentColor" stroke-width="2"/></svg>';
+        } else {
+            avatar.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+        }
+        
+        const messageContent = document.createElement('div');
+        messageContent.className = 'message-content';
+        
+        const messageBubble = document.createElement('div');
+        messageBubble.className = `message-bubble ${this.getBubbleSizeClass(messageData.content)}`;
+        
+        // Process content based on message type
+        if (messageData.type === 'bot') {
+            // For bot messages, process markdown
+            const markdownContent = document.createElement('div');
+            markdownContent.className = 'markdown-content';
+            markdownContent.innerHTML = this.processMarkdown(messageData.content);
+            messageBubble.appendChild(markdownContent);
+        } else {
+            // For user messages, keep as plain text
+            messageBubble.textContent = messageData.content;
+        }
+        
+        messageContent.appendChild(messageBubble);
+        
+        // Add metadata for bot messages
+        if (messageData.type === 'bot') {
+            const messageMeta = document.createElement('div');
+            messageMeta.className = 'message-meta';
+            
+            if (messageData.sources && messageData.sources.length > 0) {
+                const sourcesDiv = document.createElement('div');
+                sourcesDiv.className = 'sources';
+                sourcesDiv.innerHTML = `
+                    <div class="sources-title">Sources:</div>
+                    <div class="sources-list">${messageData.sources.join(', ')}</div>
+                `;
+                messageMeta.appendChild(sourcesDiv);
+            }
+            
+            if (messageData.runtime) {
+                const runtimeDiv = document.createElement('div');
+                runtimeDiv.className = 'runtime';
+                runtimeDiv.textContent = `Response time: ${messageData.runtime}ms`;
+                messageMeta.appendChild(runtimeDiv);
+            }
+            
+            messageContent.appendChild(messageMeta);
+        }
+        
+        messageDiv.appendChild(avatar);
+        messageDiv.appendChild(messageContent);
+        
+        return messageDiv;
     }
     
     init() {
@@ -115,8 +312,7 @@ class RAGChatbot {
         });
         
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.detail || `HTTP ${response.status}`);
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
         
         return await response.json();
@@ -125,93 +321,14 @@ class RAGChatbot {
     // Determine bubble size class based on content length
     getBubbleSizeClass(content) {
         const length = content.length;
-        
-        if (length < 50) {
-            return 'short';
-        } else if (length < 200) {
-            return 'medium';
-        } else if (length < 500) {
-            return 'long';
-        } else {
-            return 'extra-long';
-        }
-    }
-    
-    addMessage(content, type, sources = [], runtime = null) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `message ${type}-message`;
-        
-        // Create avatar
-        const avatar = document.createElement('div');
-        avatar.className = 'message-avatar';
-        avatar.textContent = type === 'user' ? 'You' : 'AI';
-        
-        // Create content container
-        const contentDiv = document.createElement('div');
-        contentDiv.className = 'message-content';
-        
-        // Create message bubble with dynamic sizing
-        const bubble = document.createElement('div');
-        const sizeClass = this.getBubbleSizeClass(content);
-        bubble.className = `message-bubble ${sizeClass}`;
-        bubble.textContent = content;
-        
-        contentDiv.appendChild(bubble);
-        
-        // Add sources if available
-        if (sources && sources.length > 0) {
-            const sourcesDiv = document.createElement('div');
-            sourcesDiv.className = 'sources';
-            
-            const sourcesTitle = document.createElement('div');
-            sourcesTitle.className = 'sources-title';
-            sourcesTitle.textContent = 'Sources';
-            
-            const sourcesList = document.createElement('div');
-            sourcesList.className = 'sources-list';
-            sourcesList.textContent = sources.join(', ');
-            
-            sourcesDiv.appendChild(sourcesTitle);
-            sourcesDiv.appendChild(sourcesList);
-            contentDiv.appendChild(sourcesDiv);
-        }
-        
-        // Add metadata
-        if (runtime) {
-            const metaDiv = document.createElement('div');
-            metaDiv.className = 'message-meta';
-            metaDiv.textContent = `${runtime}ms`;
-            contentDiv.appendChild(metaDiv);
-        }
-        
-        messageDiv.appendChild(avatar);
-        messageDiv.appendChild(contentDiv);
-        
-        this.chatMessages.appendChild(messageDiv);
-        this.messageCount++;
-        
-        // Store message in current chat
-        const messageData = {
-            content,
-            type,
-            sources,
-            runtime,
-            timestamp: new Date().toISOString()
-        };
-        this.currentChatMessages.push(messageData);
-        
-        // Save current chat to localStorage
-        this.saveCurrentChat();
-        
-        this.scrollToBottom();
+        if (length < 100) return 'short';
+        if (length < 300) return 'medium';
+        if (length < 600) return 'long';
+        return 'extra-long';
     }
     
     addErrorMessage(message) {
-        const errorDiv = document.createElement('div');
-        errorDiv.className = 'error-message';
-        errorDiv.textContent = message;
-        this.chatMessages.appendChild(errorDiv);
-        this.scrollToBottom();
+        this.addMessage(message, 'bot', [], null);
     }
     
     setLoading(isLoading) {
@@ -225,7 +342,9 @@ class RAGChatbot {
     }
     
     scrollToBottom() {
-        this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+        setTimeout(() => {
+            this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+        }, 100);
     }
     
     // Chat History Management
@@ -234,53 +353,72 @@ class RAGChatbot {
     }
     
     generateChatTitle(firstMessage) {
-        // Generate a title from the first user message (max 30 chars)
-        if (!firstMessage || firstMessage.length === 0) return 'New Chat';
-        
+        // Generate a title from the first message (max 50 chars)
         let title = firstMessage.trim();
-        if (title.length > 30) {
-            title = title.substring(0, 27) + '...';
+        if (title.length > 50) {
+            title = title.substring(0, 47) + '...';
         }
         return title;
     }
     
     startNewChat() {
+        // Save current chat if it has messages
+        if (this.currentChatId && this.currentChatMessages.length > 0) {
+            this.saveCurrentChat();
+        }
+        
+        // Start new chat
         this.currentChatId = this.generateChatId();
         this.currentChatMessages = [];
         this.messageCount = 0;
+        
+        // Clear chat messages
+        this.chatMessages.innerHTML = `
+            <div class="welcome-message">
+                <div class="welcome-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                        <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                        <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <h2>Welcome to RAG Assistant</h2>
+                <p>I can help you find information from your documents. Ask me anything!</p>
+            </div>
+        `;
+        
+        // Update sidebar
+        this.updateActiveChatInSidebar(this.currentChatId);
     }
     
     saveCurrentChat() {
-        if (this.currentChatMessages.length === 0) return;
+        if (!this.currentChatId || this.currentChatMessages.length === 0) return;
         
         const chatData = {
             id: this.currentChatId,
-            title: this.generateChatTitle(this.currentChatMessages[0]?.content),
+            title: this.generateChatTitle(this.currentChatMessages[0].content),
             messages: this.currentChatMessages,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+            timestamp: new Date().toISOString()
         };
         
         // Get existing chats
-        let chats = this.getChatHistory();
+        const existingChats = this.getChatHistory();
         
-        // Update existing chat or add new one
-        const existingIndex = chats.findIndex(chat => chat.id === this.currentChatId);
-        if (existingIndex !== -1) {
-            chats[existingIndex] = chatData;
-        } else {
-            chats.unshift(chatData); // Add to beginning
-        }
+        // Remove if already exists (update)
+        const filteredChats = existingChats.filter(chat => chat.id !== this.currentChatId);
         
-        // Keep only last 10 chats
-        if (chats.length > this.maxChats) {
-            chats = chats.slice(0, this.maxChats);
+        // Add new chat at the beginning
+        filteredChats.unshift(chatData);
+        
+        // Keep only the most recent chats
+        if (filteredChats.length > this.maxChats) {
+            filteredChats.splice(this.maxChats);
         }
         
         // Save to localStorage
-        localStorage.setItem('ragChatHistory', JSON.stringify(chats));
+        localStorage.setItem('ragChatHistory', JSON.stringify(filteredChats));
         
-        // Update UI
+        // Update sidebar
         this.renderChatHistory();
     }
     
@@ -300,212 +438,134 @@ class RAGChatbot {
         
         if (!chat) return;
         
-        // Clear current messages
-        this.chatMessages.innerHTML = '';
+        // Save current chat first
+        if (this.currentChatId && this.currentChatMessages.length > 0) {
+            this.saveCurrentChat();
+        }
         
-        // Set current chat
+        // Load the selected chat
         this.currentChatId = chatId;
-        this.currentChatMessages = [...chat.messages];
+        this.currentChatMessages = chat.messages;
         this.messageCount = chat.messages.length;
         
-        // Render messages
-        chat.messages.forEach(msg => {
-            this.renderMessage(msg);
+        // Clear and rebuild chat messages
+        this.chatMessages.innerHTML = '';
+        
+        chat.messages.forEach(messageData => {
+            const messageElement = this.renderMessage(messageData);
+            this.chatMessages.appendChild(messageElement);
         });
         
-        // Update active chat in sidebar
+        this.scrollToBottom();
         this.updateActiveChatInSidebar(chatId);
         
-        this.scrollToBottom();
-        this.questionInput.focus();
-    }
-    
-    renderMessage(messageData) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `message ${messageData.type}-message`;
-        
-        // Create avatar
-        const avatar = document.createElement('div');
-        avatar.className = 'message-avatar';
-        avatar.textContent = messageData.type === 'user' ? 'You' : 'AI';
-        
-        // Create content container
-        const contentDiv = document.createElement('div');
-        contentDiv.className = 'message-content';
-        
-        // Create message bubble with dynamic sizing
-        const bubble = document.createElement('div');
-        const sizeClass = this.getBubbleSizeClass(messageData.content);
-        bubble.className = `message-bubble ${sizeClass}`;
-        bubble.textContent = messageData.content;
-        
-        contentDiv.appendChild(bubble);
-        
-        // Add sources if available
-        if (messageData.sources && messageData.sources.length > 0) {
-            const sourcesDiv = document.createElement('div');
-            sourcesDiv.className = 'sources';
-            
-            const sourcesTitle = document.createElement('div');
-            sourcesTitle.className = 'sources-title';
-            sourcesTitle.textContent = 'Sources';
-            
-            const sourcesList = document.createElement('div');
-            sourcesList.className = 'sources-list';
-            sourcesList.textContent = messageData.sources.join(', ');
-            
-            sourcesDiv.appendChild(sourcesTitle);
-            sourcesDiv.appendChild(sourcesList);
-            contentDiv.appendChild(sourcesDiv);
+        // Close mobile sidebar
+        if (window.innerWidth <= 768) {
+            this.closeMobileSidebar();
         }
-        
-        // Add metadata
-        if (messageData.runtime) {
-            const metaDiv = document.createElement('div');
-            metaDiv.className = 'message-meta';
-            metaDiv.textContent = `${messageData.runtime}ms`;
-            contentDiv.appendChild(metaDiv);
-        }
-        
-        messageDiv.appendChild(avatar);
-        messageDiv.appendChild(contentDiv);
-        
-        this.chatMessages.appendChild(messageDiv);
     }
     
     renderChatHistory() {
         const chats = this.getChatHistory();
-        
-        // Clear existing history (except clear button)
-        const historyContainer = this.chatHistoryContainer;
-        historyContainer.innerHTML = '';
+        this.chatHistoryContainer.innerHTML = '';
         
         if (chats.length === 0) {
-            const emptyState = document.createElement('div');
-            emptyState.className = 'history-empty';
-            emptyState.innerHTML = `
-                <p>No chat history yet</p>
-                <p>Start a conversation to see your chats here</p>
-            `;
-            historyContainer.appendChild(emptyState);
+            this.chatHistoryContainer.innerHTML = '<div class="history-empty">No chat history</div>';
             return;
         }
         
         // Group chats by date
         const today = new Date().toDateString();
-        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toDateString();
+        const yesterday = new Date(Date.now() - 86400000).toDateString();
         
-        const groupedChats = {
-            today: [],
-            yesterday: [],
-            older: []
-        };
-        
-        chats.forEach(chat => {
-            const chatDate = new Date(chat.createdAt).toDateString();
-            if (chatDate === today) {
-                groupedChats.today.push(chat);
-            } else if (chatDate === yesterday) {
-                groupedChats.yesterday.push(chat);
-            } else {
-                groupedChats.older.push(chat);
-            }
+        const todayChats = chats.filter(chat => new Date(chat.timestamp).toDateString() === today);
+        const yesterdayChats = chats.filter(chat => new Date(chat.timestamp).toDateString() === yesterday);
+        const olderChats = chats.filter(chat => {
+            const chatDate = new Date(chat.timestamp).toDateString();
+            return chatDate !== today && chatDate !== yesterday;
         });
         
         // Render groups
-        if (groupedChats.today.length > 0) {
-            this.renderChatGroup('Today', groupedChats.today, historyContainer);
+        if (todayChats.length > 0) {
+            this.renderChatGroup('Today', todayChats, this.chatHistoryContainer);
         }
         
-        if (groupedChats.yesterday.length > 0) {
-            this.renderChatGroup('Yesterday', groupedChats.yesterday, historyContainer);
+        if (yesterdayChats.length > 0) {
+            this.renderChatGroup('Yesterday', yesterdayChats, this.chatHistoryContainer);
         }
         
-        if (groupedChats.older.length > 0) {
-            this.renderChatGroup('Previous 7 days', groupedChats.older, historyContainer);
+        if (olderChats.length > 0) {
+            this.renderChatGroup('Older', olderChats, this.chatHistoryContainer);
         }
     }
     
     renderChatGroup(label, chats, container) {
-        const section = document.createElement('div');
-        section.className = 'history-section';
+        const groupDiv = document.createElement('div');
+        groupDiv.className = 'history-section';
         
         const labelDiv = document.createElement('div');
         labelDiv.className = 'history-label';
         labelDiv.textContent = label;
-        section.appendChild(labelDiv);
+        groupDiv.appendChild(labelDiv);
         
         chats.forEach(chat => {
-            const item = document.createElement('div');
-            item.className = `history-item ${chat.id === this.currentChatId ? 'active' : ''}`;
-            item.dataset.chatId = chat.id;
-            
-            item.innerHTML = `
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M21 15A2 2 0 0 1 19 17H7A2 2 0 0 1 5 15V5A2 2 0 0 1 7 3H19A2 2 0 0 1 21 5Z" stroke="currentColor" stroke-width="2"/>
-                    <path d="M16 3V7L14 5L12 7V3" stroke="currentColor" stroke-width="2"/>
-                </svg>
-                <span class="history-text">${chat.title}</span>
-                <button class="delete-chat-btn" data-chat-id="${chat.id}" title="Delete chat">
+            const chatItem = document.createElement('div');
+            chatItem.className = 'history-item';
+            chatItem.innerHTML = `
+                <div class="history-text">${chat.title}</div>
+                <button class="delete-chat-btn" onclick="chatbot.deleteChat('${chat.id}')" title="Delete chat">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
                 </button>
             `;
             
-            // Add click listener for loading chat
-            item.addEventListener('click', (e) => {
+            chatItem.addEventListener('click', (e) => {
                 if (!e.target.closest('.delete-chat-btn')) {
                     this.loadChat(chat.id);
                 }
             });
             
-            // Add delete listener
-            const deleteBtn = item.querySelector('.delete-chat-btn');
-            deleteBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.deleteChat(chat.id);
-            });
-            
-            section.appendChild(item);
+            groupDiv.appendChild(chatItem);
         });
         
-        container.appendChild(section);
+        container.appendChild(groupDiv);
     }
     
     updateActiveChatInSidebar(chatId) {
-        const items = this.chatHistoryContainer.querySelectorAll('.history-item');
-        items.forEach(item => {
-            if (item.dataset.chatId === chatId) {
-                item.classList.add('active');
-            } else {
-                item.classList.remove('active');
-            }
+        // Remove active class from all items
+        document.querySelectorAll('.history-item').forEach(item => {
+            item.classList.remove('active');
         });
+        
+        // Add active class to current chat (if it exists in sidebar)
+        const activeItem = document.querySelector(`.history-item[onclick*="${chatId}"]`);
+        if (activeItem) {
+            activeItem.classList.add('active');
+        }
     }
     
     deleteChat(chatId) {
-        if (confirm('Are you sure you want to delete this chat?')) {
-            let chats = this.getChatHistory();
-            chats = chats.filter(chat => chat.id !== chatId);
-            
-            localStorage.setItem('ragChatHistory', JSON.stringify(chats));
-            
-            // If deleted chat is current, start new chat
-            if (chatId === this.currentChatId) {
-                this.newChat();
-            } else {
-                this.renderChatHistory();
-            }
+        if (!confirm('Are you sure you want to delete this chat?')) return;
+        
+        const chats = this.getChatHistory();
+        const filteredChats = chats.filter(chat => chat.id !== chatId);
+        
+        localStorage.setItem('ragChatHistory', JSON.stringify(filteredChats));
+        this.renderChatHistory();
+        
+        // If we deleted the current chat, start a new one
+        if (chatId === this.currentChatId) {
+            this.startNewChat();
         }
     }
     
     clearHistory() {
-        if (confirm('Are you sure you want to clear all chat history? This action cannot be undone.')) {
-            localStorage.removeItem('ragChatHistory');
-            this.renderChatHistory();
-            this.newChat();
-        }
+        if (!confirm('Are you sure you want to clear all chat history?')) return;
+        
+        localStorage.removeItem('ragChatHistory');
+        this.renderChatHistory();
+        this.startNewChat();
     }
     
     loadChatHistory() {
@@ -514,29 +574,8 @@ class RAGChatbot {
     
     toggleSidebar() {
         this.sidebarCollapsed = !this.sidebarCollapsed;
-        
-        if (this.sidebarCollapsed) {
-            this.sidebar.classList.add('collapsed');
-            // Update toggle button icon for collapsed state
-            const toggleBtn = this.sidebarToggle.querySelector('svg');
-            if (toggleBtn) {
-                toggleBtn.innerHTML = `
-                    <path d="M9 18L15 12L9 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                `;
-            }
-        } else {
-            this.sidebar.classList.remove('collapsed');
-            // Update toggle button icon for expanded state
-            const toggleBtn = this.sidebarToggle.querySelector('svg');
-            if (toggleBtn) {
-                toggleBtn.innerHTML = `
-                    <path d="M3 8L21 8M3 16L21 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                `;
-            }
-        }
-        
-        // Save state to localStorage
-        localStorage.setItem('sidebarCollapsed', this.sidebarCollapsed);
+        this.sidebar.classList.toggle('collapsed');
+        localStorage.setItem('sidebarCollapsed', this.sidebarCollapsed.toString());
     }
     
     toggleMobileSidebar() {
@@ -548,34 +587,13 @@ class RAGChatbot {
     }
     
     newChat() {
-        // Clear chat messages
-        this.chatMessages.innerHTML = `
-            <div class="welcome-message">
-                <div class="welcome-icon">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-                        <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-                        <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-                    </svg>
-                </div>
-                <h2>Welcome to RAG Assistant</h2>
-                <p>I can help you find information from your documents. Ask me anything!</p>
-            </div>
-        `;
-        
-        // Start new chat
         this.startNewChat();
-        
-        // Update sidebar
-        this.renderChatHistory();
-        
-        this.questionInput.focus();
     }
     
     // Load saved sidebar state on init
     loadSidebarState() {
-        const saved = localStorage.getItem('sidebarCollapsed');
-        if (saved === 'true') {
+        const collapsed = localStorage.getItem('sidebarCollapsed');
+        if (collapsed === 'true') {
             this.sidebarCollapsed = true;
             this.sidebar.classList.add('collapsed');
         }
@@ -583,7 +601,8 @@ class RAGChatbot {
 }
 
 // Initialize the chatbot when the page loads
+let chatbot;
 document.addEventListener('DOMContentLoaded', () => {
-    const chatbot = new RAGChatbot();
+    chatbot = new RAGChatbot();
     chatbot.loadSidebarState();
 });

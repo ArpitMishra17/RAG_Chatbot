@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG Admin - Document Management</title>
+    <link rel="stylesheet" href="/static/css/admin.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="admin-app">
+        <header class="admin-header">
+            <div class="header-content">
+                <div class="header-left">
+                    <div class="logo">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                            <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                            <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                        </svg>
+                        <span>RAG Admin</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <a href="http://localhost:8003" class="back-to-chat" target="_blank">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M18 13V19A2 2 0 0 1 16 21H5A2 2 0 0 1 3 19V8A2 2 0 0 1 5 6H11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M15 3H21V9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M10 14L21 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        Open Chat App
+                    </a>
+                </div>
+            </div>
+        </header>
+
+        <main class="admin-main">
+            <div class="admin-container">
+                <h1>Document Management</h1>
+                <p class="admin-description">Upload and manage PDF documents for the RAG system</p>
+
+                <!-- Upload Section -->
+                <div class="upload-section">
+                    <div class="upload-area" id="upload-area">
+                        <div class="upload-icon">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M21 15V19A2 2 0 0 1 19 21H5A2 2 0 0 1 3 19V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M7 10L12 15L17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </div>
+                        <h3>Upload PDF Documents</h3>
+                        <p>Drag and drop PDF files here, or click to select multiple files</p>
+                        <p class="upload-limits">Maximum file size: 50MB per file</p>
+                        
+                        <input type="file" id="file-input" multiple accept=".pdf" style="display: none;">
+                        <button class="upload-btn" id="upload-btn">Choose Files</button>
+                    </div>
+                </div>
+
+                <!-- Upload Queue Section -->
+                <div class="upload-queue" id="upload-queue" style="display: none;">
+                    <h2>Upload Queue</h2>
+                    <div class="queue-items" id="queue-items">
+                        <!-- Upload items will be added here dynamically -->
+                    </div>
+                    <div class="queue-actions">
+                        <button class="btn btn-primary" id="start-all-btn">Process All Files</button>
+                        <button class="btn btn-secondary" id="clear-queue-btn">Clear Queue</button>
+                    </div>
+                </div>
+
+                <!-- Processing Status Section -->
+                <div class="processing-status" id="processing-status" style="display: none;">
+                    <h2>Processing Status</h2>
+                    <div class="status-items" id="status-items">
+                        <!-- Status items will be added here dynamically -->
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/js/admin.js"></script>
+</body>
+</html>

@@ -879,3 +879,132 @@ body {
     font-weight: 500;
     margin-bottom: 0.5rem;
 }
+
+/* Markdown Content Styles */
+.message-content .markdown-content {
+    line-height: 1.6;
+}
+
+.message-content .markdown-content h1,
+.message-content .markdown-content h2,
+.message-content .markdown-content h3,
+.message-content .markdown-content h4,
+.message-content .markdown-content h5,
+.message-content .markdown-content h6 {
+    margin: 1em 0 0.5em 0;
+    font-weight: 600;
+    color: var(--foreground);
+}
+
+.message-content .markdown-content h1 { font-size: 1.5em; }
+.message-content .markdown-content h2 { font-size: 1.3em; }
+.message-content .markdown-content h3 { font-size: 1.1em; }
+
+.message-content .markdown-content p {
+    margin: 0.5em 0;
+}
+
+.message-content .markdown-content strong {
+    font-weight: 600;
+    color: var(--foreground);
+}
+
+.message-content .markdown-content em {
+    font-style: italic;
+}
+
+.message-content .markdown-content code {
+    background: var(--muted);
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.85em;
+    color: var(--foreground);
+}
+
+.message-content .markdown-content pre {
+    background: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1em;
+    overflow-x: auto;
+    margin: 1em 0;
+}
+
+.message-content .markdown-content pre code {
+    background: none;
+    padding: 0;
+    border-radius: 0;
+}
+
+.message-content .markdown-content ul,
+.message-content .markdown-content ol {
+    margin: 0.5em 0;
+    padding-left: 2em;
+}
+
+.message-content .markdown-content li {
+    margin: 0.25em 0;
+}
+
+.message-content .markdown-content blockquote {
+    border-left: 4px solid var(--primary);
+    margin: 1em 0;
+    padding: 0.5em 1em;
+    background: var(--muted);
+    color: var(--muted-foreground);
+    border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.message-content .markdown-content a {
+    color: var(--primary);
+    text-decoration: none;
+}
+
+.message-content .markdown-content a:hover {
+    text-decoration: underline;
+}
+
+/* Table Styles */
+.message-content .markdown-content table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1em 0;
+    background: var(--background);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.message-content .markdown-content table th,
+.message-content .markdown-content table td {
+    border: 1px solid var(--border);
+    padding: 0.75em 1em;
+    text-align: left;
+}
+
+.message-content .markdown-content table th {
+    background: var(--muted);
+    font-weight: 600;
+    color: var(--foreground);
+}
+
+.message-content .markdown-content table tr:nth-child(even) {
+    background: var(--muted);
+}
+
+.message-content .markdown-content table tr:hover {
+    background: var(--accent);
+}
+
+/* Responsive table */
+@media (max-width: 768px) {
+    .message-content .markdown-content table {
+        font-size: 0.875rem;
+    }
+    
+    .message-content .markdown-content table th,
+    .message-content .markdown-content table td {
+        padding: 0.5em 0.75em;
+    }
+}
