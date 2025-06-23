@@ -13,7 +13,7 @@
     --muted-foreground: #64748b;
     --accent: #f1f5f9;
     --accent-foreground: #0f172a;
-    --destructive: #ef4444;
+    --destructive: #bb3333;
     --destructive-foreground: #f8fafc;
     --border: #e2e8f0;
     --input: #e2e8f0;
@@ -155,8 +155,9 @@ body {
 }
 
 .new-chat-btn:hover {
-    background: var(--accent);
+    background: var(--foreground);
     border-color: var(--ring);
+    color: var(--destructive-foreground);
 }
 
 .new-chat-text {
@@ -164,6 +165,26 @@ body {
     transform: translateX(0);
     transition: opacity 0.2s ease, transform 0.2s ease;
     white-space: nowrap;
+}
+
+.sidebar.collapsed .new-chat-text {
+    display: none;
+}
+
+.sidebar.collapsed .new-chat-btn svg {
+    display: block;
+    margin: 0;
+}
+
+.sidebar.collapsed .new-chat-btn {
+    justify-content: center;
+    padding: 0.75rem;
+    min-width: auto;
+    width: auto;
+}
+
+.sidebar.collapsed .new-chat-btn {
+    margin-bottom: 0.5rem;
 }
 
 .sidebar.collapsed .new-chat-text {
@@ -1007,4 +1028,38 @@ body {
     .message-content .markdown-content table td {
         padding: 0.5em 0.75em;
     }
+}
+
+/* Add these styles to your existing CSS - specifically for collapsed sidebar buttons */
+
+/* When sidebar is collapsed, hide text but show icons */
+.sidebar.collapsed .new-chat-text,
+.sidebar.collapsed .clear-history-text {
+    display: none;
+}
+
+/* Ensure icons remain visible when collapsed */
+.sidebar.collapsed .new-chat-btn svg,
+.sidebar.collapsed .clear-history-btn svg {
+    display: block;
+    margin: 0;
+}
+
+/* Adjust button padding when collapsed to center the icons */
+.sidebar.collapsed .new-chat-btn,
+.sidebar.collapsed .clear-history-btn {
+    justify-content: center;
+    padding: 0.75rem;
+    min-width: auto;
+    width: auto;
+}
+
+/* Ensure the buttons maintain proper spacing in collapsed state */
+.sidebar.collapsed .new-chat-btn {
+    margin-bottom: 0.5rem;
+}
+
+/* Center the sidebar toggle when collapsed */
+.sidebar.collapsed .sidebar-toggle-container {
+    justify-content: center;
 }

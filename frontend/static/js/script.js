@@ -382,7 +382,7 @@ class RAGChatbot {
                         <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
                     </svg>
                 </div>
-                <h2>Welcome to RAG Assistant</h2>
+                <h2>Welcome to Document Assistant</h2>
                 <p>I can help you find information from your documents. Ask me anything!</p>
             </div>
         `;
